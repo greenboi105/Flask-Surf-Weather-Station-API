@@ -20,7 +20,10 @@ prcp_df = pd.DataFrame(last_twelve_months_precipitation)
 
 # Sort the dataframe by date
 prcp_df = prcp_df.sort_values('date')
+
 ```
+
+![Precipitation Over Time](./precipitation_over_time.png)
 
 ### Station Analysis
 
@@ -42,6 +45,8 @@ tobs_data = [result[0] for result in tobs_data_query.all()]
 # Plot the occurrence results 
 plt.hist(tobs_data, bins=12, label='tobs')
 ```
+
+![Temperature Observation Occurrences](./most_active_observation_data.png)
 
 ## Climate Flask API
 
