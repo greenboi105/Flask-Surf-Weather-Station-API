@@ -1,8 +1,8 @@
 # Surfer Weather Analysis and Flask API
 
-## Part 1: Analyze and Explore Climate Data
+## Analyze and Explore Climate Data - Jupyter Notebook Analysis
 
-In this portion Python and SQLAlchemy are used to perform a basic climate analysis of the climate database. We use pandas and matplotlib for plotting and retrieve the data from the sqlite database using the SQLAlchemy Object Relational Mapper.
+In this portion Python and SQLAlchemy are used to perform a basic climate analysis of the climate database. We use pandas and matplotlib for plotting and retrieve the data from the sqlite database using the SQLAlchemy Object Relational Mapper. Connection to the sqlite database is done using the SQLAlchemy ORM.
 
 ### Precipitation Analysis
 
@@ -48,7 +48,7 @@ plt.hist(tobs_data, bins=12, label='tobs')
 
 ![Temperature Observation Occurrences](./most_active_observation_data.png)
 
-## Climate Flask API
+## Climate Flask API - Flask API in Python
 
 We have now performed the initial analysis overview and we want to use the queries we have developed to create an API that returns the requested information in JSON format.
 
