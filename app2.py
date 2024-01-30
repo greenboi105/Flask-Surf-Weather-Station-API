@@ -2,27 +2,17 @@
 import numpy as np
 import pandas as pd
 import datetime as dt
-import sqlalchemy
 
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, func
 from flask import Flask, jsonify
-
-from path import file_path
-
-# Database Setup - connect to database and import existing tables
-engine = create_engine(f"sqlite:///{file_path}")
-Base = automap_base()
-Base.prepare(autoload_with=engine)
-Station = Base.classes.station
-Measurement = Base.classes.measurement
-
-# Create session
-session = Session(engine)
 
 # Flask Setup
 app = Flask(__name__)
+
+measurements_df = pd.read_csv("https://raw.githubusercontent.com/greenboi105/Flask-Surf-Weather-Station-API/main/Resources/hawaii_measurements.csv")
+measurements_df['date'] = pd.to_datetime(measurements_df['date'])
+
+stations_df = pd.read_csv("https://raw.githubusercontent.com/greenboi105/Flask-Surf-Weather-Station-API/main/Resources/hawaii_stations.csv")
+
 
 # Flask Routes
 @app.route("/")
@@ -43,20 +33,17 @@ def homepage():
         "/api/v1.0/temp/YYYY-MM-DD(Start)/YYYY-MM-DD(End)"
     )
 
-
 @app.route('/api/v1.0/precipitation')
 def precipitation():
 
     # Calculate the year prior to the last date
-    begin_date = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    begin_date = pd.to_datetime(dt.date(2017, 8, 23) - dt.timedelta(days=365))
 
     # Selects the "date" and "prcp" columns from the "Measurement" table and filter the data 
-    results = session.query(Measurement.date, Measurement.prcp).filter(Measurement.date >= begin_date).order_by(Measurement.date).all()
+    filtered_data = measurements_df[measurements_df['date'] >= begin_date].sort_values('date')[['date', 'prcp']]
 
     # Create a dictionary where the date is the key and the precipitation is the value 
-    precipitation = [{date: prcp} for date, prcp in results]
-
-    session.close()
+    precipitation = [{str(date): prcp} for date, prcp in zip(list(filtered_data['date']), list(filtered_data['prcp']))]
 
     return jsonify(precipitation)
 
@@ -65,7 +52,7 @@ def precipitation():
 def stations():
 
     # Query station data
-    results = session.query(Station.station, Station.name, Station.latitude, Station.longitude, Station.elevation).all()
+    results = stations_df.copy()
 
     # Create a list of dictionaries representing stations
     station_data = [
@@ -76,9 +63,7 @@ def stations():
         "Longitude": longitude,
         "Elevation": elevation
         } 
-    for station, name, latitude, longitude, elevation in results]
-
-    session.close()
+    for station, name, latitude, longitude, elevation in zip(list(results['station']), list(results['name']), list(results['latitude']), list(results['longitude']), list(results['elevation']))]
 
     return jsonify(station_data)
 
@@ -87,27 +72,26 @@ def stations():
 def tobs():
 
     # Find the most-active station
-    most_active_station = session.query(Measurement.station, func.count(Measurement.station)).group_by(Measurement.station).order_by(func.count(Measurement.station).desc()).first()
+    most_active_station = measurements_df.groupby('station').size().reset_index(name='count').sort_values('count', ascending=False).head(1)
     
     # Get the most-active station
-    most_active_station_id = most_active_station[0]
+    most_active_station_id = most_active_station['station'].iloc[0]
 
     # Calculate the date one year ago from the last date
-    one_year_ago = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+    one_year_ago = pd.to_datetime(dt.date(2017, 8, 23) - dt.timedelta(days=365))
 
     # Query temperature observations for the most-active station
-    results = session.query(Measurement.date, Measurement.tobs).filter(Measurement.station == most_active_station_id).filter(Measurement.date >= one_year_ago).all()
+    results = measurements_df[(measurements_df['station'] == most_active_station_id) & 
+                                (measurements_df['date'] >= one_year_ago)][['date', 'tobs']]
 
     # Create a list of dictionaries representing temperature observations
     tobs_data = [
         {
-        "Date": date,
+        "Date": str(date),
         "Temperature": tobs,
         "Most Active Station": most_active_station_id
         } 
-    for date, tobs in results]
-
-    session.close()
+    for date, tobs in zip(list(results['date']), list(results['tobs']))]
 
     return jsonify(tobs_data)
 
@@ -115,43 +99,43 @@ def tobs():
 @app.route("/api/v1.0/temp/<start>")
 def start_stats(start=None):
 
-    # Query the database to calculate TMIN, TAVG, and TMAX for the specified date
-    results = session.query(func.min(Measurement.tobs), func.max(Measurement.tobs),func.avg(Measurement.tobs)).filter(Measurement.date >= start).all()
+    # Filter the DataFrame based on the start date
+    filtered_df = measurements_df[measurements_df['date'] >= start]
 
-    # Create a dictionary from the row data and append to a list of for the temperature data
+    # Calculate min, max, and avg of 'tobs'
+    min_tobs = filtered_df['tobs'].min()
+    max_tobs = filtered_df['tobs'].max()
+    avg_tobs = filtered_df['tobs'].mean()
+
     temp_stats = [
         {
-            'Minimum Temp' : Tmin, 
-            'Maximum Temp' : Tmax,
-            'Average Temp': Tavg
+            'Minimum Temp' : min_tobs, 
+            'Maximum Temp' : max_tobs,
+            'Average Temp': avg_tobs
         } 
-        for Tmin, Tmax, Tavg in results
     ]
 
-    session.close()
-
     return jsonify(temp_stats)
-
 
 @app.route('/api/v1.0/temp/<start>/<end>')
 def calc_stats(start, end):
 
     # Query the database to calculate TMIN, TAVG, and TMAX for the specified date range
-    results = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).filter(Measurement.date >= start).filter(Measurement.date <= end).all()
+    filtered_df = measurements_df[(measurements_df['date'] >= start) & (measurements_df['date'] <= end)]
+    results = list(filtered_df['tobs'].agg(['min', 'mean', 'max']))
 
     # Create a dictionary from the row data and append to a list of for the temperature data
     temp_stats = [
         {
-            'Minimum Temp' : Tmin, 
-            'Maximum Temp' : Tmax,
-            'Average Temp': Tavg
+            'Minimum Temp' : results[0], 
+            'Maximum Temp' : results[1],
+            'Average Temp': results[2]
         } 
-        for Tmin, Tmax, Tavg in results
     ]
-    
-    session.close()
 
     return jsonify(temp_stats)
 
+
 if __name__ == '__main__':
     app.run(debug=True)
+    
